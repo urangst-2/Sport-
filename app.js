@@ -39,10 +39,28 @@ const MET={kraft:['Krafttraining mit Zusatzgewicht',3.5,5,6],koerper:['Körperge
 function calc(p){const b=10*p.kg+6.25*p.cm-5*age(p.dob)+(p.sex==='m'?5:-161),t=b*PAL[p.pal][1],pd=(p.rate||0)*7700/7;
  let adj=p.goal==='ab'?-Math.min(pd,t*.25):p.goal==='auf'?Math.min(pd,500):0,g=t+adj;const fl=p.sex==='m'?1500:1200,cap=g<fl;if(cap)g=fl;if(p.manual)g=p.manual;
  return{bmr:Math.round(b),tdee:Math.round(t),goal:Math.round(g),capped:cap&&!p.manual,credit:p.credit,tol:p.tol}}
-const wk=(w,kg)=>w.kcal!=null?w.kcal:(w.min?Math.round((MET[w.type][1+w.int]-1)*kg*w.min/60):null);
+const ek=(e,w,kg)=>{const m=e.m||sum(e.s.map(s=>(s.r||0)*3+60))/60;return m>0?Math.round((MET[e.t||w.type][1+w.int]-1)*kg*m/60):null};
+const wk=(w,kg)=>{if(w.kcal!=null)return w.kcal;if(w.min)return Math.round((MET[w.type][1+w.int]-1)*kg*w.min/60);const a=w.ex.map(e=>ek(e,w,kg)).filter(v=>v!=null);return a.length?sum(a):null};
+const ev=(e,w,kg)=>w.min||w.kcal!=null?'':(v=>v==null?'':' (ca. '+v+' kcal)')(ek(e,w,kg));
 const trn=(wo,d)=>{let k=0,u=0;wo.forEach(w=>{const v=wk(w,d.kg);v==null?u++:k+=v});return{k,u}};
 const snap=async date=>{let d=await get('days',date);if(!d){const p=await kv('p');if(!p)return null;d={date,...calc(p),kg:p.kg,done:false};await put('days',d)}return d};
 const refresh=async()=>{const p=await kv('p'),d=await get('days',D0());if(p&&d)await put('days',{...d,...calc(p),kg:p.kg})};
+
+/* Kalorienschätzung aus Freitext: eingebaute Liste, Richtwerte kcal je 100 g oder ml und Standardportion in g. Nudeln, Reis, Kartoffeln, Fleisch gelten als gekocht oder gebraten. */
+const FD='brot,vollkornbrot,toast,toastbrot,graubrot,mischbrot:250:45;brötchen,semmel,weckle,schrippe:270:60;brezel,breze:300:80;croissant:410:60;knäckebrot:340:10;haferflocken,müsli,porridge:370:50;cornflakes:375:30;nudeln,spaghetti,pasta:150:250;reis:130:200;kartoffeln,kartoffel,kartoffelpüree:80:200;pommes:300:150;pizza:250:300;döner,dürüm:215:350;burger,hamburger,cheeseburger:250:200;erdnussbutter:600:15;nutella,nussnougatcreme:540:15;butter:740:10;margarine:720:10;marmelade,konfitüre:250:20;honig:300:20;frischkäse:250:30;hummus:230:30;käse,gouda,emmentaler,cheddar:360:30;mozzarella:250:125;feta:260:50;parmesan:400:10;schinken:120:20;salami:400:15;bratwurst,würstchen,wurst:290:100;ei,eier,spiegelei,rührei:145:55;joghurt,naturjoghurt:65:150;fruchtjoghurt:100:150;skyr:65:150;quark,magerquark:70:125;milch:64:200;hafermilch,sojamilch,mandelmilch:45:200;cappuccino,latte macchiato,milchkaffee:45:250;kaffee,tee,wasser:1:200;cola,limonade,fanta,sprite,eistee:42:330;orangensaft,apfelsaft,saft:45:200;bier:43:500;rotwein,weißwein,weisswein,sekt:75:150;apfel:52:180;banane:90:120;orange,mandarine,clementine:47:120;birne:55:170;erdbeeren,erdbeere,beeren,himbeeren,blaubeeren:40:100;trauben,weintrauben:70:100;melone,wassermelone:30:200;ananas:55:100;avocado:160:150;tomate,tomaten:18:100;gurke:12:100;paprika:30:150;karotte,möhre,karotten,möhren:40:80;salat:20:100;brokkoli,blumenkohl,gemüse,zucchini:35:150;zwiebel:40:80;pilze,champignons:22:100;nüsse,mandeln,walnüsse,cashews,haselnüsse,erdnüsse:620:30;chips:530:50;schokolade:540:20;schokoriegel,müsliriegel,proteinriegel,snickers,twix:450:50;keks,kekse,plätzchen:470:10;kuchen,torte:380:100;eis,eiscreme:210:100;gummibärchen,gummibären:350:25;hähnchen,hühnchen,pute,hähnchenbrust:150:150;steak,rindfleisch,hackfleisch,hack:220:150;schnitzel,schweinefleisch:230:150;lachs:200:150;thunfisch:130:100;fisch,fischstäbchen:170:100;tofu:120:100;linsen,kichererbsen,bohnen:130:150;suppe,eintopf:60:300;soße,sauce,sosse:80:100;olivenöl,öl:880:10;zucker:400:5;mayonnaise,mayo:700:15;ketchup:100:15;sahne:300:30;proteinshake,eiweißshake:120:300'.split(';').map(x=>{const[a,k,g]=x.split(':'),n=a.split(',');return{n:n[0][0].toUpperCase()+n[0].slice(1),a:n,k:+k,g:+g}});
+const hit=(w,a)=>a.length<4?new RegExp('(^|[^a-zäöüß])'+a+'(e|er|s|n)?($|[^a-zäöüß])').test(w):w.includes(a);
+function est(txt){const items=[],miss=[];
+ txt.toLowerCase().split(/\s+(?:mit|und|plus|dazu)\s+|\s*[,+&]\s*/).forEach(p=>{p=p.trim();if(!p)return;
+  const m=p.match(/^(\d+(?:[.,]\d+)?)\s*(?:(x|g|gr|ml|el|tl|scheibe[n]?|stück|stk|portion(?:en)?|tasse[n]?|glas|gläser|becher|dose[n]?)(?![a-zäöüß]))?\.?\s*(.*)$/),n=m?parseFloat(m[1].replace(',','.')):1,u=(m&&m[2])||'',w=m?m[3]:p;
+  let b=null,l=0;FD.forEach(d=>d.a.forEach(a=>{if(a.length>l&&hit(w,a)){b=d;l=a.length}}));
+  if(!b)return miss.push(p);
+  const g=/^(g|gr|ml)$/.test(u)?n:u==='el'?n*15:u==='tl'?n*5:n*b.g;items.push({n:b.n,g,k:Math.round(g*b.k/100)})});
+ return{items,miss,tot:sum(items.map(i=>i.k))}}
+let AUTO='';
+window.fest=()=>{const q=est($('#fn').value),fe=$('#fe'),fk=$('#fk');
+ if(!q.items.length){fe.textContent=q.miss.length?'Nicht erkannt: '+q.miss.join(', ')+'. Bitte Kalorien selbst eintragen.':'';return}
+ fe.innerHTML=q.items.map(i=>esc(i.n)+' '+f(i.g)+' g: '+f(i.k)+' kcal').join('<br>')+'<br><b>Grobe Schätzung: '+f(q.tot)+' kcal</b>'+(q.miss.length?'<br>Nicht erkannt: '+esc(q.miss.join(', ')):'');
+ if(!$('#fp').value&&(fk.value===''||fk.value===AUTO)){AUTO=dv(q.tot);fk.value=AUTO}};
 
 /* Oberfläche */
 let tab='heute',cur=D0(),per=30,pex='',W=null,IMP=null;
@@ -68,10 +86,10 @@ window.done=async c=>{const d=await snap(cur);await put('days',{...d,done:c});re
 
 async function vFood(){const fo=await byDate('food',cur);
  return`<h1>Ernährung</h1>${dn()}<button class="b" style="width:100%;margin:8px 0" onclick="fform()">Eintrag hinzufügen</button>`+MEALS.map(m=>{const a=fo.filter(x=>x.meal===m);
- return`<h2>${m}, ${f(sum(a.map(x=>x.kcal)))} kcal</h2>`+(a.map(x=>`<div class="card row" onclick="fform(${x.id})"><span>${esc(x.name)}<div class="m">${x.amount!=null?f(x.amount,0)+' g oder ml':'Gesamtwert'}</div></span><b>${f(x.kcal)} kcal</b></div>`).join('')||'<div class="m">Keine Einträge</div>')}).join('')}
-window.fform=async id=>{const x=id?await get('food',id):{meal:MEALS[0]},fs=await all('foods'),rc=[...new Set((await all('food')).reverse().map(a=>a.name))].slice(0,8);
+ return`<h2>${m}, ${f(sum(a.map(x=>x.kcal)))} kcal</h2>`+(a.map(x=>`<div class="card row" onclick="fform(${x.id})"><span>${esc(x.name)}<div class="m">${x.amount!=null?f(x.amount,0)+' g oder ml':x.est?'Schätzung':'Gesamtwert'}</div></span><b>${f(x.kcal)} kcal</b></div>`).join('')||'<div class="m">Keine Einträge</div>')}).join('')}
+window.fform=async id=>{AUTO='';const x=id?await get('food',id):{meal:MEALS[0]},fs=await all('foods'),rc=[...new Set((await all('food')).reverse().map(a=>a.name))].slice(0,8);
  sheet(`<h1>${id?'Eintrag bearbeiten':'Eintrag hinzufügen'}</h1>${rc.map(n=>`<button class="b g" style="margin:0 6px 6px 0;min-height:36px" onclick="qf(this.textContent)">${esc(n)}</button>`).join('')}
-<label>Name</label><input id=fn list=fl value="${esc(x.name||'')}" oninput="fpick(this.value)"><datalist id=fl>${fs.map(a=>`<option value="${esc(a.name)}">`).join('')}</datalist>
+<label>Name</label><input id=fn list=fl value="${esc(x.name||'')}" oninput="fpick(this.value);fest()"><datalist id=fl>${fs.map(a=>`<option value="${esc(a.name)}">`).join('')}</datalist><div id=fe class="m"></div>
 <label>Mahlzeit</label>${sel('fm',MEALS.map(m=>[m,m]),x.meal)}
 <label>kcal pro 100 g oder 100 ml</label><input id=fp inputmode=decimal value="${dv(x.per100)}">
 <label>Menge in g oder ml</label><input id=fa inputmode=decimal value="${dv(x.amount)}">
@@ -82,28 +100,28 @@ window.fpick=async n=>{const g=await get('foods',n)||(await all('food')).reverse
 window.qf=n=>{$('#fn').value=n;fpick(n)};
 window.fsave=async id=>{const n=$('#fn').value.trim(),p=num($('#fp').value),a=num($('#fa').value),k=num($('#fk').value),kc=p!=null&&a!=null?p*a/100:k;
  if(!n||kc==null||kc<0||kc>10000)return alert('Bitte einen Namen und entweder kcal pro 100 g mit Menge oder Gesamt-kcal angeben. Fehlende Werte zählen nicht als null.');
- const x={date:cur,meal:$('#fm').value,name:n,per100:p,amount:a,kcal:Math.round(kc)};if(id)x.id=id;
+ const x={date:cur,meal:$('#fm').value,name:n,per100:p,amount:a,kcal:Math.round(kc)};if(p==null&&AUTO&&$('#fk').value===AUTO)x.est=1;if(id)x.id=id;
  await put('food',x);if($('#fs').checked&&p!=null)await put('foods',{name:n,per100:p});await snap(cur);closeSheet();render()};
 window.fdel=async id=>{if(confirm('Eintrag löschen?')){await del('food',id);closeSheet();render()}};
 
 async function vTrain(){const wo=await byDate('work',cur),d=await snap(cur);
  const L=wo.map(w=>{const v=wk(w,d.kg);
- return`<div class="card"><div class="row"><b>${esc(w.name)}</b><span>${w.min?w.min+' min':'Dauer offen'}</span></div><div class="m">${MET[w.type][0]}, ${v==null?'Verbrauch unbekannt':f(v)+' kcal '+(w.kcal!=null?'manuell':'geschätzt')}</div>${w.ex.map(e=>`<div class="m">${esc(e.n)}: ${e.s.map(s=>s.r+' Wdh.'+(s.k?' mit '+f(s.k,1)+' kg':'')).join(', ')||'ohne Sätze'}</div>`).join('')}<div class="row"><button class="b g" onclick="wform(${w.id})">Bearbeiten</button><button class="b g" onclick="wdup(${w.id})">Duplizieren</button></div></div>`}).join('');
+ return`<div class="card"><div class="row"><b>${esc(w.name)}</b><span>${w.min?w.min+' min':'Dauer offen'}</span></div><div class="m">${MET[w.type][0]}, ${v==null?'Verbrauch unbekannt':f(v)+' kcal '+(w.kcal!=null?'manuell':'geschätzt')}</div>${w.ex.map(e=>`<div class="m">${esc(e.n)}: ${e.s.map(s=>s.r+' Wdh.'+(s.k?' mit '+f(s.k,1)+' kg':'')).join(', ')||(e.m?f(e.m)+' min':'ohne Sätze')}${ev(e,w,d.kg)}</div>`).join('')}<div class="row"><button class="b g" onclick="wform(${w.id})">Bearbeiten</button><button class="b g" onclick="wdup(${w.id})">Duplizieren</button></div></div>`}).join('');
  return`<h1>Training</h1>${dn()}<button class="b" style="width:100%;margin:8px 0" onclick="wform()">Workout hinzufügen</button>`+(L||'<div class="m">Keine Trainings an diesem Tag</div>')}
 window.wform=async id=>{W=id?await get('work',id):{date:cur,name:'',type:'kraft',int:1,min:'',kcal:'',note:'',ex:[]};wr()};
 const wr=()=>sheet(`<h1>Workout</h1><label>Name</label><input value="${esc(W.name)}" oninput="W.name=this.value">
 <label>Art, für die Verbrauchsschätzung</label><select onchange="W.type=this.value">${Object.entries(MET).map(([k,v])=>`<option value=${k} ${k===W.type?'selected':''}>${v[0]}</option>`).join('')}</select>
 <label>Intensität</label><select onchange="W.int=+this.value">${['Leicht','Mittel','Hoch'].map((t,i)=>`<option value=${i} ${i===W.int?'selected':''}>${t}</option>`).join('')}</select>
-<label>Gesamtdauer in Minuten (optional)</label><input inputmode=decimal value="${dv(W.min)}" oninput="W.min=this.value">
+<label>Gesamtdauer in Minuten (optional, ersetzt die Schätzung aus Sätzen und Übungsminuten)</label><input inputmode=decimal value="${dv(W.min)}" oninput="W.min=this.value">
 <label>Verbrauchte aktive kcal manuell (optional, ohne Grundumsatz, ersetzt die Schätzung)</label><input inputmode=decimal value="${dv(W.kcal)}" oninput="W.kcal=this.value">
 <label>Notiz</label><input value="${esc(W.note)}" oninput="W.note=this.value">
-<h2>Übungen</h2>${W.ex.map((e,i)=>`<div class="card"><input placeholder="Übung" value="${esc(e.n)}" onchange="exn(${i},this.value)">${e.s.map((s,j)=>`<div class="g2"><input inputmode=decimal placeholder="Wiederholungen" value="${dv(s.r)}" oninput="W.ex[${i}].s[${j}].r=this.value"><input inputmode=decimal placeholder="Zusatzgewicht in kg" value="${dv(s.k)}" oninput="W.ex[${i}].s[${j}].k=this.value"></div>`).join('')}<button class="b g" onclick="W.ex[${i}].s.push({r:'',k:''});wr()">Satz hinzufügen</button> <button class="b d" onclick="W.ex.splice(${i},1);wr()">Entfernen</button></div>`).join('')}
-<button class="b g" onclick="W.ex.push({n:'',s:[]});wr()">Übung hinzufügen</button>
+<h2>Übungen</h2>${W.ex.map((e,i)=>`<div class="card"><input placeholder="Übung" value="${esc(e.n)}" onchange="exn(${i},this.value)"><div class="g2"><select onchange="W.ex[${i}].t=this.value">${Object.entries(MET).map(([k,v])=>`<option value=${k} ${k===(e.t||W.type)?'selected':''}>${v[0].split(/[ ,]/)[0]}</option>`).join('')}</select><input inputmode=decimal placeholder="Minuten, optional" value="${dv(e.m)}" oninput="W.ex[${i}].m=this.value"></div>${e.s.map((s,j)=>`<div class="g2"><input inputmode=decimal placeholder="Wiederholungen" value="${dv(s.r)}" oninput="W.ex[${i}].s[${j}].r=this.value"><input inputmode=decimal placeholder="Zusatzgewicht in kg" value="${dv(s.k)}" oninput="W.ex[${i}].s[${j}].k=this.value"></div>`).join('')}<button class="b g" onclick="W.ex[${i}].s.push({r:'',k:''});wr()">Satz hinzufügen</button> <button class="b d" onclick="W.ex.splice(${i},1);wr()">Entfernen</button></div>`).join('')}
+<button class="b g" onclick="W.ex.push({n:'',s:[],t:W.type,m:''});wr()">Übung hinzufügen</button>
 <button class="b" style="width:100%;margin-top:14px" onclick="wsave()">Speichern</button>${W.id?'<button class="b d" onclick="wdel()">Löschen</button>':''}<button class="b g" style="width:100%;margin-top:8px" onclick="closeSheet()">Abbrechen</button>`);
-window.exn=async(i,v)=>{v=v.trim();W.ex[i].n=v;if(v&&!W.ex[i].s.length){const l=(await all('work')).sort((a,b)=>a.date<b.date?1:-1).map(w=>w.ex.find(e=>e.n===v)).find(Boolean);if(l)W.ex[i].s=l.s.map(s=>({...s}))}wr()};
+window.exn=async(i,v)=>{v=v.trim();W.ex[i].n=v;if(/stair|lauf|rad|ergo|ruder|schwimm|seil|cross|ellip|walk|geh/i.test(v))W.ex[i].t='ausdauer';if(v&&!W.ex[i].s.length){const l=(await all('work')).sort((a,b)=>a.date<b.date?1:-1).map(w=>w.ex.find(e=>e.n===v)).find(Boolean);if(l){W.ex[i].s=l.s.map(s=>({...s}));W.ex[i].t=l.t||W.ex[i].t;W.ex[i].m=l.m}}wr()};
 window.wsave=async()=>{const m=num(W.min),k=num(W.kcal);if(!W.name.trim())return alert('Bitte einen Namen angeben.');
  if((m!=null&&(m<=0||m>600))||(k!=null&&(k<0||k>5000)))return alert('Bitte plausible Werte für Dauer und kcal eingeben.');
- const w={...W,name:W.name.trim(),min:m,kcal:k,ex:W.ex.filter(e=>e.n).map(e=>({n:e.n,s:e.s.map(s=>({r:num(s.r),k:num(s.k)})).filter(s=>s.r!=null)}))};
+ const w={...W,name:W.name.trim(),min:m,kcal:k,ex:W.ex.filter(e=>e.n).map(e=>({n:e.n,t:e.t||W.type,m:num(e.m),s:e.s.map(s=>({r:num(s.r),k:num(s.k)})).filter(s=>s.r!=null)}))};
  await put('work',w);await snap(w.date);closeSheet();render()};
 window.wdel=async()=>{if(confirm('Workout löschen?')){await del('work',W.id);closeSheet();render()}};
 window.wdup=async id=>{const w=await get('work',id);delete w.id;w.date=cur;await put('work',w);render()};
@@ -143,7 +161,7 @@ window.psave=async()=>{const q=id=>num($('#'+id).value),p={cm:q('pc'),kg:q('pk')
 async function vSet(){const p=await kv('p'),bk=await kv('bk');
  return`<h1>Einstellungen</h1>${pform(p)}<h2>Datensicherung</h2><div class="card"><div class="m">Letzte Sicherung: ${bk?new Date(bk).toLocaleString('de-DE'):'noch nie'}. Die Daten liegen nur im Browserspeicher dieses Geräts. Das Löschen von Website-Daten oder andere Speicherereignisse können sie entfernen, dauerhafte Speicherung ist nicht garantiert.</div>
 <button class="b" style="width:100%;margin:10px 0" onclick="exp()">Alles exportieren (JSON)</button><label>Sicherung importieren</label><input type=file accept=".json,application/json" onchange="imp(this)"><button class="b d" onclick="wipeAll()">Alle Daten löschen</button></div>
-<h2>Grundlagen</h2><div class="card m">Ruheenergiebedarf nach Mifflin-St-Jeor (Mifflin et al., 1990). Tagesbedarf gleich Ruheenergiebedarf mal Alltagsfaktor (1,2 / 1,3 / 1,4 / 1,5, eigene Annahmen ohne Sport). Training: (MET minus 1) mal kg mal Stunden, MET-Werte als Näherung angelehnt an das Compendium of Physical Activities; das Ruhe-MET von 1 ist im Tagesbedarf schon enthalten. Ziel: 7700 kcal je kg Körpergewicht als grobe Faustregel, Defizit höchstens 25 Prozent, Untergrenze 1200 kcal (weiblich) oder 1500 kcal (männlich). Alle Werte sind Schätzungen. Die App sendet keine Daten an Dritte.</div>`}
+<h2>Grundlagen</h2><div class="card m">Ruheenergiebedarf nach Mifflin-St-Jeor (Mifflin et al., 1990). Tagesbedarf gleich Ruheenergiebedarf mal Alltagsfaktor (1,2 / 1,3 / 1,4 / 1,5, eigene Annahmen ohne Sport). Training: (MET minus 1) mal kg mal Stunden, MET-Werte als Näherung angelehnt an das Compendium of Physical Activities; das Ruhe-MET von 1 ist im Tagesbedarf schon enthalten. Ziel: 7700 kcal je kg Körpergewicht als grobe Faustregel, Defizit höchstens 25 Prozent, Untergrenze 1200 kcal (weiblich) oder 1500 kcal (männlich). Ohne Gesamtdauer schätzt die App je Übung aus den Sätzen (pro Satz Wiederholungen mal 3 Sekunden plus 60 Sekunden Pause) oder aus den Übungsminuten; bei angegebener Gesamtdauer zählt nur diese. Kalorien aus Freitext stammen aus einer eingebauten Liste mit Standardportionen und sind grob. Alle Werte sind Schätzungen. Die App sendet keine Daten an Dritte.</div>`}
 window.exp=async()=>{const o={app:'kt',v:1,at:new Date().toISOString(),kv:{p:await kv('p')}};for(const s of ST.slice(1))o[s]=await all(s);
  const b=new Blob([JSON.stringify(o)],{type:'application/json'}),n='bilanz-'+D0()+'.json',fl=new File([b],n,{type:'application/json'});
  if(navigator.canShare&&navigator.canShare({files:[fl]})){try{await navigator.share({files:[fl]})}catch(e){if(e.name==='AbortError')return;throw e}}
