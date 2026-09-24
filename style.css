@@ -1,0 +1,21 @@
+:root{--bg:#0e0f11;--c:#181a1e;--c2:#22252b;--t:#eceef1;--m:#8b919b;--a:#5fb3a1;--r:#e5786d}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{margin:0;background:var(--bg);color:var(--t);font:17px/1.4 -apple-system,system-ui,sans-serif;overflow-x:hidden}
+main{padding:calc(env(safe-area-inset-top) + 14px) 16px calc(90px + env(safe-area-inset-bottom))}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#121316;border-top:1px solid var(--c2);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;color:var(--m);font:inherit;font-size:12px;min-height:56px;padding:0 2px}
+nav button.on{color:var(--a);font-weight:600}
+h1{font-size:26px;margin:0 0 12px}h2{font-size:15px;color:var(--m);font-weight:500;margin:22px 0 8px}
+.card{background:var(--c);border-radius:14px;padding:14px;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:44px}
+.big{font-size:36px;font-weight:600}.m{color:var(--m);font-size:14px}.neg{color:var(--r)}
+input,select{width:100%;min-height:48px;background:var(--c2);color:var(--t);border:1px solid #2d3138;border-radius:10px;padding:10px 12px;font:inherit;margin:4px 0 10px}
+input[type=checkbox]{width:28px;min-height:28px}
+button.b{min-height:48px;padding:0 16px;border-radius:12px;border:0;background:var(--a);color:#06110e;font:inherit;font-weight:600}
+button.g{background:var(--c2);color:var(--t)}button.d{background:none;color:var(--r)}
+label{font-size:14px;color:var(--m)}
+.bar{height:8px;background:var(--c2);border-radius:4px;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;background:var(--a)}
+#off{background:#3a2f14;padding:calc(env(safe-area-inset-top) + 4px) 12px 6px;font-size:13px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#sh{position:fixed;inset:0;background:rgba(0,0,0,.65);overflow:auto;z-index:9}
+#sh>div{background:var(--bg);margin:calc(env(safe-area-inset-top) + 8px) 8px 8px;padding:16px 16px calc(60px + env(safe-area-inset-bottom));border-radius:16px}
